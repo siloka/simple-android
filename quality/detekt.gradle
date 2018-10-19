@@ -1,0 +1,21 @@
+apply plugin: 'io.gitlab.arturbosch.detekt'
+
+detekt {
+  toolVersion = "$versions.detekt"
+
+  input = files(
+      "src/main/java",
+      "src/debug/java",
+      "src/test/java",
+      "src/androidTest/java"
+  )
+
+  filters = ".*/resources/.*,.*/build/.*"
+
+  reports {
+    html {
+      enabled = true
+      destination = file("build/reports/detekt.html")
+    }
+  }
+}
