@@ -171,8 +171,9 @@ dependencies {
   testImplementation "org.jetbrains.kotlin:kotlin-reflect:$versions.kotlin"
 
   implementation "com.android.support:appcompat-v7:$versions.supportLib"
-  // Needed because play services auth exposes an older dependency
-  implementation "com.android.support:support-v4:$versions.supportLib"
+  implementation("com.android.support:support-v4:$versions.supportLib") {
+    because 'play services auth exposes an older dependency'
+  }
   implementation "com.android.support:recyclerview-v7:$versions.supportLib"
   implementation "com.android.support:design:$versions.supportLib"
   implementation "com.android.support:cardview-v7:$versions.supportLib"
@@ -212,10 +213,10 @@ dependencies {
   implementation "io.requery:sqlite-android:$versions.sqliteAndroid"
 
   implementation "com.google.android.gms:play-services-auth:$versions.playServicesAuth"
-  // Adding an explicit dependency on this because the qrreader lib exposes an older dependency
   implementation "com.google.android.gms:play-services-vision:$versions.playServicesVision"
   implementation("com.github.nisrulz:qreader:$versions.qrReader") {
     exclude group: 'com.google.android.gms', module: 'play-services-vision'
+    because 'the qrreader library exposes an older dependency'
   }
   implementation "io.github.inflationx:viewpump:$versions.viewPump"
   implementation "com.heapanalytics.android:heap-android-client:$versions.heap"
