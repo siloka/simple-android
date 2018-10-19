@@ -1,0 +1,23 @@
+repositories {
+  mavenCentral()
+}
+
+configurations {
+  ktlint
+}
+
+dependencies {
+  ktlint "com.github.shyiko:ktlint:$versions.ktlint"
+}
+
+task ktlint(type: JavaExec, group: "verification") {
+  description = "Check Kotlin code style."
+  main = "com.github.shyiko.ktlint.Main"
+  classpath = configurations.ktlint
+  args "src/test/**/*.kt"
+  // to generate report in checkstyle format prepend following args:
+  // "--reporter=plain", "--reporter=checkstyle,output=${buildDir}/ktlint.xml"
+  // see https://github.com/shyiko/ktlint#usage for more
+}
+
+check.dependsOn ktlint
