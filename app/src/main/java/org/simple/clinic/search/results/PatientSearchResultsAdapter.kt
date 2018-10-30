@@ -17,13 +17,11 @@ import org.threeten.bp.LocalDateTime
 import org.threeten.bp.Period
 import org.threeten.bp.ZoneOffset.UTC
 import org.threeten.bp.format.DateTimeFormatter
-import java.util.Locale
 import javax.inject.Inject
 
-private val DATE_OF_BIRTH_FORMATTER = DateTimeFormatter.ofPattern("d-MMM-yyyy", Locale.ENGLISH)
-
 class PatientSearchResultsAdapter @Inject constructor(
-    private val phoneObfuscator: PhoneNumberObfuscator
+    private val phoneObfuscator: PhoneNumberObfuscator,
+    private val dateOfBirthFormatter: DateTimeFormatter
 ) : RecyclerView.Adapter<PatientSearchResultsAdapter.ViewHolder>() {
 
   val itemClicks: PublishSubject<UiEvent> = PublishSubject.create<UiEvent>()
@@ -39,7 +37,7 @@ class PatientSearchResultsAdapter @Inject constructor(
 
   override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
     val inflater = LayoutInflater.from(parent.context)
-    val holder = ViewHolder(inflater.inflate(R.layout.list_patient_search, parent, false))
+    val holder = ViewHolder(inflater.inflate(R.layout.list_patient_search, parent, false), dateOfBirthFormatter)
     holder.setClickListener(itemClicks)
     return holder
   }
@@ -53,7 +51,7 @@ class PatientSearchResultsAdapter @Inject constructor(
     return patients.size
   }
 
-  class ViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
+  class ViewHolder(itemView: View, private val dateOfBirthFormatter: DateTimeFormatter) : RecyclerView.ViewHolder(itemView) {
 
     private val genderImageView by bindView<ImageView>(R.id.patientsearchresult_item_gender)
     private val titleTextView by bindView<TextView>(R.id.patientsearchresult_item_title)
@@ -96,7 +94,7 @@ class PatientSearchResultsAdapter @Inject constructor(
         dateOfBirthTextView.visibility = View.GONE
       } else {
         dateOfBirthTextView.visibility = View.VISIBLE
-        dateOfBirthTextView.text = DATE_OF_BIRTH_FORMATTER.format(dateOfBirth)
+        dateOfBirthTextView.text = dateOfBirthFormatter.format(dateOfBirth)
       }
 
       val phoneNumber = searchResult.phoneNumber
@@ -114,7 +112,7 @@ class PatientSearchResultsAdapter @Inject constructor(
         lastBpDateFrame.visibility = View.VISIBLE
 
         val lastBpDate = lastBp.takenOn.atZone(UTC).toLocalDate()
-        val formattedLastBpDate = DATE_OF_BIRTH_FORMATTER.format(lastBpDate)
+        val formattedLastBpDate = dateOfBirthFormatter.format(lastBpDate)
 
         val isCurrentFacility = lastBp.takenAtFacilityUuid == currentFacility.uuid
         if (isCurrentFacility) {

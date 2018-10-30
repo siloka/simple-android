@@ -42,14 +42,14 @@ import org.simple.clinic.router.screen.BackPressInterceptor
 import org.simple.clinic.router.screen.RouterDirection.BACKWARD
 import org.simple.clinic.router.screen.ScreenRouter
 import org.simple.clinic.scheduleappointment.ScheduleAppointmentSheet
-import org.simple.clinic.util.Just
-import org.simple.clinic.util.None
 import org.simple.clinic.util.Optional
 import org.simple.clinic.widgets.PrimarySolidButtonWithFrame
 import org.simple.clinic.widgets.UiEvent
 import org.simple.clinic.widgets.hideKeyboard
+import org.threeten.bp.Clock
 import org.threeten.bp.LocalDate
 import org.threeten.bp.Period
+import org.threeten.bp.format.DateTimeFormatter
 import java.util.UUID
 import javax.inject.Inject
 
@@ -71,11 +71,18 @@ class PatientSummaryScreen(context: Context, attrs: AttributeSet) : RelativeLayo
   @Inject
   lateinit var activity: TheActivity
 
+  @Inject
+  lateinit var dateOfBirthFormatter: DateTimeFormatter
+
+  @Inject
+  lateinit var clock: Clock
+
   private val rootLayout by bindView<ViewGroup>(R.id.patientsummary_root)
   private val backButton by bindView<ImageButton>(R.id.patientsummary_back)
   private val fullNameTextView by bindView<TextView>(R.id.patientsummary_fullname)
-  private val byline1TextView by bindView<TextView>(R.id.patientsummary_byline1)
-  private val byline2TextView by bindView<TextView>(R.id.patientsummary_byline2)
+  private val addressTextView by bindView<TextView>(R.id.patientsummary_address)
+  private val ageTextView by bindView<TextView>(R.id.patientsummary_age)
+  private val contactTextView by bindView<TextView>(R.id.patientsummary_contact)
   private val recyclerView by bindView<RecyclerView>(R.id.patientsummary_recyclerview)
   private val doneButtonFrame by bindView<PrimarySolidButtonWithFrame>(R.id.patientsummary_done)
   private val editButton by bindView<Button>(R.id.patientsummary_edit)
@@ -191,33 +198,46 @@ class PatientSummaryScreen(context: Context, attrs: AttributeSet) : RelativeLayo
 
   @SuppressLint("SetTextI18n")
   fun populatePatientProfile(patient: Patient, address: PatientAddress, phoneNumber: Optional<PatientPhoneNumber>) {
-    fullNameTextView.text = patient.fullName
+    displayNameAndGender(patient.fullName, patient.gender)
 
     if (patient.dateOfBirth == null) {
       val computedDob = patient.age!!.computedDateOfBirth
-      val years = Period.between(computedDob, LocalDate.now()).years.toString()
-      byline1TextView.text = years
+      val years = Period.between(computedDob, LocalDate.now(clock)).years
+      displayAgeAndDateOfBirth(years, computedDob)
 
     } else {
-      val years = Period.between(patient.dateOfBirth, LocalDate.now()).years.toString()
-      byline1TextView.text = years
+      val years = Period.between(patient.dateOfBirth, LocalDate.now(clock)).years
+      displayAgeAndDateOfBirth(years, patient.dateOfBirth)
     }
 
-    byline1TextView.text = when (patient.gender) {
-      Gender.MALE -> "${byline1TextView.text}, ${resources.getString(Gender.MALE.displayTextRes)}"
-      Gender.FEMALE -> "${byline1TextView.text}, ${resources.getString(Gender.FEMALE.displayTextRes)}"
-      Gender.TRANSGENDER -> "${byline1TextView.text}, ${resources.getString(Gender.TRANSGENDER.displayTextRes)}"
-    }
+    displayPhoneNumber(phoneNumber.toNullable())
+    displayPatientAddress(address)
+  }
 
-    byline1TextView.text = when (phoneNumber) {
-      is Just -> "${byline1TextView.text} • ${phoneNumber.value.number}"
-      is None -> byline1TextView.text
+  private fun displayPatientAddress(address: PatientAddress) {
+    addressTextView.text = when {
+      address.colonyOrVillage.isNullOrBlank() -> resources.getString(R.string.patientsummary_address_without_colony, address.district, address.state)
+      else -> resources.getString(R.string.patientsummary_address_with_colony, address.colonyOrVillage, address.district, address.state)
     }
+  }
 
-    byline2TextView.text = when {
-      address.colonyOrVillage.isNullOrBlank() -> "${address.district}, ${address.state}"
-      else -> "${address.colonyOrVillage}, ${address.district}, ${address.state}"
+  private fun displayPhoneNumber(phoneNumber: PatientPhoneNumber?) {
+    if (phoneNumber == null) {
+      contactTextView.visibility = View.GONE
+
+    } else {
+      contactTextView.text = phoneNumber.number
+      contactTextView.visibility = View.VISIBLE
     }
+  }
+
+  private fun displayNameAndGender(name: String, gender: Gender) {
+    val genderLetter = resources.getString(gender.displayLetterRes)
+    fullNameTextView.text = resources.getString(R.string.patientsummary_name, name, genderLetter)
+  }
+
+  private fun displayAgeAndDateOfBirth(years: Int, dateOfBirth: LocalDate) {
+    ageTextView.text = resources.getString(R.string.patientsummary_age, years, dateOfBirthFormatter.format(dateOfBirth))
   }
 
   private fun setupSummaryList() {
