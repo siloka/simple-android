@@ -6,7 +6,7 @@
   android:gravity="center"
   android:orientation="vertical">
 
-  <ImageView
+  <!--<ImageView
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:layout_marginBottom="@dimen/spacing_40"
@@ -28,5 +28,10 @@
     android:layout_marginEnd="@dimen/spacing_24"
     android:layout_marginStart="@dimen/spacing_24"
     android:layout_marginTop="@dimen/spacing_12"
-    android:text="@string/reports_you_will_be_able_to_see" />
+    android:text="@string/reports_you_will_be_able_to_see" />-->
+
+  <WebView
+    android:id="@+id/reports_webview"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent" />
 </org.simple.clinic.home.report.ReportsScreen>
