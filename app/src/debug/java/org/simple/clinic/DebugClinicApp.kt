@@ -92,7 +92,7 @@ class DebugClinicApp : ClinicApp() {
         .appModule(AppModule(this))
         .loginModule(object : LoginModule() {
           override fun appLockConfig(): Single<AppLockConfig> {
-            return Single.just(AppLockConfig(lockAfterTimeMillis = TimeUnit.SECONDS.toMillis(4)))
+            return Single.just(AppLockConfig(lockAfterTimeMillis = TimeUnit.MINUTES.toMillis(5)))
           }
         })
         .registrationModule(object : RegistrationModule() {
