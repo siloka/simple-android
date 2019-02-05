@@ -9,6 +9,9 @@ import com.nhaarman.mockito_kotlin.whenever
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
+import io.reactivex.plugins.RxJavaPlugins
+import io.reactivex.schedulers.TestScheduler
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import org.junit.Before
 import org.junit.Rule
@@ -20,15 +23,20 @@ import org.simple.clinic.facility.FacilitySync
 import org.simple.clinic.facility.change.FacilitiesUpdateType.FIRST_UPDATE
 import org.simple.clinic.facility.change.FacilitiesUpdateType.SUBSEQUENT_UPDATE
 import org.simple.clinic.facility.change.FacilityListItem
+import org.simple.clinic.location.LocationRepository
+import org.simple.clinic.location.LocationUpdate.TurnedOff
 import org.simple.clinic.patient.PatientMocker
+import org.simple.clinic.registration.RegistrationConfig
 import org.simple.clinic.registration.RegistrationScheduler
 import org.simple.clinic.user.OngoingRegistrationEntry
 import org.simple.clinic.user.UserSession
 import org.simple.clinic.util.RxErrorsRule
 import org.simple.clinic.widgets.ScreenCreated
 import org.simple.clinic.widgets.UiEvent
+import org.threeten.bp.Duration
 import org.threeten.bp.Instant
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 class RegistrationFacilitySelectionScreenControllerTest {
 
@@ -40,13 +48,29 @@ class RegistrationFacilitySelectionScreenControllerTest {
   private val facilitySync = mock<FacilitySync>()
   private val facilityRepository = mock<FacilityRepository>()
   private val registrationScheduler = mock<RegistrationScheduler>()
+  private val locationRepository = mock<LocationRepository>()
   private val userSession = mock<UserSession>()
+  private val testComputationScheduler = TestScheduler()
 
   private lateinit var controller: RegistrationFacilitySelectionScreenController
 
+  private val configTemplate = RegistrationConfig(
+      retryBackOffDelayInMinutes = 0,
+      locationListenerExpiry = Duration.ofSeconds(0),
+      locationUpdateInterval = Duration.ofSeconds(0))
+  private val configProvider = BehaviorSubject.createDefault(configTemplate)
+
   @Before
   fun setUp() {
-    controller = RegistrationFacilitySelectionScreenController(facilitySync, facilityRepository, userSession, registrationScheduler)
+    RxJavaPlugins.setComputationSchedulerHandler { testComputationScheduler }
+
+    controller = RegistrationFacilitySelectionScreenController(
+        facilitySync,
+        facilityRepository,
+        userSession,
+        registrationScheduler,
+        locationRepository,
+        configProvider.firstOrError())
 
     uiEvents
         .compose(controller)
@@ -59,12 +83,68 @@ class RegistrationFacilitySelectionScreenControllerTest {
     whenever(facilityRepository.facilities()).thenReturn(Observable.just(facilities))
     whenever(facilityRepository.recordCount()).thenReturn(Observable.just(facilities.size))
     whenever(facilitySync.pullWithResult()).thenReturn(Single.just(FacilityPullResult.Success()))
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.just(TurnedOff))
 
     uiEvents.onNext(ScreenCreated())
 
-    verify(screen).showProgressIndicator()
     verify(facilitySync).pullWithResult()
+  }
+
+  @Test
+  fun `when screen is started then location should be fetched`() {
+    whenever(facilityRepository.recordCount()).thenReturn(Observable.never())
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.never())
+
+    uiEvents.onNext(ScreenCreated())
+
+    verify(locationRepository).streamUserLocation(any())
+  }
+
+  @Test
+  fun `when location is being fetched then it should expire after a fixed time duration`() {
+    configProvider.onNext(configTemplate.copy(locationListenerExpiry = Duration.ofSeconds(5)))
+
+    val facilities = emptyList<Facility>()
+    whenever(facilityRepository.facilities()).thenReturn(Observable.just(facilities))
+    whenever(facilityRepository.recordCount()).thenReturn(Observable.just(facilities.size))
+    whenever(facilitySync.pullWithResult()).thenReturn(Single.just(FacilityPullResult.Success()))
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.never())
+
+    uiEvents.onNext(ScreenCreated())
+    verify(screen).showProgressIndicator()
+
+    testComputationScheduler.advanceTimeBy(6, TimeUnit.SECONDS)
     verify(screen).hideProgressIndicator()
+  }
+
+  @Test
+  fun `while facilities and location are being fetched then progress indicator should be shown`() {
+    val facilities = emptyList<Facility>()
+    whenever(facilityRepository.facilities()).thenReturn(Observable.just(facilities))
+    whenever(facilityRepository.recordCount()).thenReturn(Observable.just(facilities.size))
+    whenever(facilitySync.pullWithResult()).thenReturn(Single.just(FacilityPullResult.Success()))
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.just(TurnedOff))
+
+    uiEvents.onNext(ScreenCreated())
+
+    val inOrder = inOrder(screen)
+    inOrder.verify(screen).showProgressIndicator()
+    inOrder.verify(screen).hideProgressIndicator()
+  }
+
+  @Test
+  fun `when both facilities and location are fetched only then should facilities be shown`() {
+    // TODO
+  }
+
+  @Test
+  fun `when facilities are fetched but location is still ongoing then facilities shouldn't be shown`() {
+    // TODO
+  }
+
+  @Test
+  fun `when facilities are fetched, but location listener expires then facilities should still be shown`() {
+    // TODO
   }
 
   @Test
@@ -73,12 +153,11 @@ class RegistrationFacilitySelectionScreenControllerTest {
     whenever(facilityRepository.facilities()).thenReturn(Observable.just(facilities))
     whenever(facilityRepository.recordCount()).thenReturn(Observable.just(facilities.size))
     whenever(facilitySync.pullWithResult()).thenReturn(Single.just(FacilityPullResult.Success()))
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.just(TurnedOff))
 
     uiEvents.onNext(ScreenCreated())
 
-    verify(screen, never()).showProgressIndicator()
     verify(facilitySync, never()).pullWithResult()
-    verify(screen, never()).hideProgressIndicator()
   }
 
   @Test
@@ -102,6 +181,7 @@ class RegistrationFacilitySelectionScreenControllerTest {
 
   @Test
   fun `when fetching facilities fails then an error should be shown`() {
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.just(TurnedOff))
     whenever(facilityRepository.facilities()).thenReturn(Observable.just(emptyList()))
     whenever(facilityRepository.recordCount()).thenReturn(Observable.just(0))
     whenever(facilitySync.pullWithResult())
@@ -118,9 +198,12 @@ class RegistrationFacilitySelectionScreenControllerTest {
 
   @Test
   fun `when retry is clicked then the error should be cleared and facilities should be fetched again`() {
-    whenever(facilityRepository.facilities()).thenReturn(Observable.just(emptyList()))
+    whenever(facilityRepository.recordCount()).thenReturn(Observable.just(1))
+    whenever(facilityRepository.facilities()).thenReturn(Observable.never())
     whenever(facilitySync.pullWithResult()).thenReturn(Single.just(FacilityPullResult.Success()))
+    whenever(locationRepository.streamUserLocation(any())).thenReturn(Observable.just(TurnedOff))
 
+    uiEvents.onNext(ScreenCreated())
     uiEvents.onNext(RegistrationFacilitySelectionRetryClicked())
 
     verify(screen).hideError()
