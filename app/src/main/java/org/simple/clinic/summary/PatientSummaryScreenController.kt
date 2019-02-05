@@ -66,6 +66,8 @@ class PatientSummaryScreenController @Inject constructor(
     val replayedEvents = ReplayUntilScreenIsDestroyed(events)
         .compose(ReportAnalyticsEvents())
         .compose(mergeWithPatientSummaryChanges())
+        .compose(mergeWithBloodPressureSaves())
+        .compose(mergeWithSavedBloodPressureCounts())
         .replay()
 
     return Observable.mergeArray(
@@ -75,11 +77,13 @@ class PatientSummaryScreenController @Inject constructor(
         updateMedicalHistory(replayedEvents),
         openBloodPressureBottomSheet(replayedEvents),
         openPrescribedDrugsScreen(replayedEvents),
-        handleBackAndDoneClicks(replayedEvents),
         exitScreenAfterSchedulingAppointment(replayedEvents),
         openBloodPressureUpdateSheet(replayedEvents),
         patientSummaryResultChanged(replayedEvents),
-        showUpdatePhoneDialogIfRequired(replayedEvents))
+        showUpdatePhoneDialogIfRequired(replayedEvents),
+        showScheduleAppointmentSheet(replayedEvents),
+        goToHomeOnDoneClick(replayedEvents),
+        goBackWhenBackClicked(replayedEvents))
   }
 
   private fun reportViewedPatientEvent(events: Observable<UiEvent>): Observable<UiChange> {
@@ -179,6 +183,36 @@ class PatientSummaryScreenController @Inject constructor(
     }
   }
 
+  private fun mergeWithBloodPressureSaves(): ObservableTransformer<UiEvent, UiEvent> {
+    return ObservableTransformer { events ->
+      val bloodPressureSaves = events
+          .ofType<PatientSummaryBloodPressureClosed>()
+          .startWith(PatientSummaryBloodPressureClosed(false))
+          .map { it.wasBloodPressureSaved }
+
+      val bloodPressureSaveRestores = events
+          .ofType<PatientSummaryRestoredWithBPSaved>()
+          .map { it.wasBloodPressureSaved }
+
+      val mergedBloodPressureSaves = bloodPressureSaves.mergeWith(bloodPressureSaveRestores)
+          .map(::PatientSummaryBloodPressureSaved)
+
+      events.mergeWith(mergedBloodPressureSaves)
+    }
+  }
+
+  private fun mergeWithSavedBloodPressureCounts(): ObservableTransformer<UiEvent, UiEvent> {
+    return ObservableTransformer { events ->
+      val allBloodPressuresDeleted = events
+          .ofType<PatientSummaryScreenCreated>()
+          .map { it.patientUuid }
+          .switchMap(bpRepository::bloodPressureCount)
+          .map { recordedBpCount -> PatientSummaryAllBloodPressuresDeleted(recordedBpCount == 0) }
+
+      events.mergeWith(allBloodPressuresDeleted)
+    }
+  }
+
   private fun populateList(events: Observable<UiEvent>): Observable<UiChange> {
     val bloodPressurePlaceholders = events.ofType<PatientSummaryItemChanged>()
         .map { it ->
@@ -271,34 +305,21 @@ class PatientSummaryScreenController @Inject constructor(
         }
   }
 
-  private fun handleBackAndDoneClicks(events: Observable<UiEvent>): Observable<UiChange> {
-    val callers = events
-        .ofType<PatientSummaryScreenCreated>()
-        .map { it.caller }
-
+  private fun showScheduleAppointmentSheet(events: Observable<UiEvent>): Observable<UiChange> {
     val patientUuids = events
         .ofType<PatientSummaryScreenCreated>()
         .map { it.patientUuid }
-        .replay()
-        .refCount()
 
     val bloodPressureSaves = events
-        .ofType<PatientSummaryBloodPressureClosed>()
-        .startWith(PatientSummaryBloodPressureClosed(false))
+        .ofType<PatientSummaryBloodPressureSaved>()
         .map { it.wasBloodPressureSaved }
 
-    val bloodPressureSaveRestores = events
-        .ofType<PatientSummaryRestoredWithBPSaved>()
-        .map { it.wasBloodPressureSaved }
-
-    val mergedBloodPressureSaves = bloodPressureSaves.mergeWith(bloodPressureSaveRestores)
-
-    val allBpsForPatientDeleted = patientUuids
-        .switchMap(bpRepository::bloodPressureCount)
-        .map { recordedBpCount -> recordedBpCount == 0 }
+    val allBpsForPatientDeleted = events
+        .ofType<PatientSummaryAllBloodPressuresDeleted>()
+        .map { it.allBloodPressuresDeleted }
 
     val shouldShowAppointmentSheet = Observables
-        .combineLatest(mergedBloodPressureSaves, allBpsForPatientDeleted) { wasBloodPressureSaved, recordedBpsAreDeleted ->
+        .combineLatest(bloodPressureSaves, allBpsForPatientDeleted) { wasBloodPressureSaved, recordedBpsAreDeleted ->
           if (recordedBpsAreDeleted) false else wasBloodPressureSaved
         }
 
@@ -308,32 +329,67 @@ class PatientSummaryScreenController @Inject constructor(
     val doneClicks = events
         .ofType<PatientSummaryDoneClicked>()
 
-    val doneOrBackClicksWithBpSaved = Observable.merge(doneClicks, backClicks)
+    return Observable.merge(doneClicks, backClicks)
         .withLatestFrom(shouldShowAppointmentSheet, patientUuids)
         .filter { (_, showScheduleAppointmentSheet, _) -> showScheduleAppointmentSheet }
         .map { (_, _, uuid) -> { ui: Ui -> ui.showScheduleAppointmentSheet(patientUuid = uuid) } }
+  }
 
-    val backClicksWithBpNotSaved = backClicks
-        .withLatestFrom(shouldShowAppointmentSheet, callers)
-        .filter { (_, showScheduleAppointmentSheet, _) -> showScheduleAppointmentSheet.not() }
-        .map { (_, _, caller) ->
-          { ui: Ui ->
-            when (caller!!) {
-              SEARCH -> ui.goBackToPatientSearch()
-              NEW_PATIENT -> ui.goBackToHome()
-            }.exhaustive()
-          }
+  private fun goToHomeOnDoneClick(events: Observable<UiEvent>): Observable<UiChange> {
+    val bloodPressureSaves = events
+        .ofType<PatientSummaryBloodPressureSaved>()
+        .map { it.wasBloodPressureSaved }
+
+    val allBpsForPatientDeleted = events
+        .ofType<PatientSummaryAllBloodPressuresDeleted>()
+        .map { it.allBloodPressuresDeleted }
+
+    val shouldGoBackToHome = Observables
+        .combineLatest(bloodPressureSaves, allBpsForPatientDeleted) { wasBloodPressureSaved, recordedBpsAreDeleted ->
+          if (recordedBpsAreDeleted) true else wasBloodPressureSaved.not()
         }
 
-    val doneClicksWithBpNotSaved = doneClicks
-        .withLatestFrom(shouldShowAppointmentSheet)
-        .filter { (_, showScheduleAppointmentSheet) -> showScheduleAppointmentSheet.not() }
+    return events
+        .ofType<PatientSummaryDoneClicked>()
+        .withLatestFrom(shouldGoBackToHome)
+        .filter { (_, shouldGoBackToHome) -> shouldGoBackToHome }
+        .map { { ui: Ui -> ui.goBackToHome() } }
+  }
+
+  private fun goBackWhenBackClicked(events: Observable<UiEvent>): Observable<UiChange> {
+    val callers = events
+        .ofType<PatientSummaryScreenCreated>()
+        .map { it.caller }
+
+    val bloodPressureSaves = events
+        .ofType<PatientSummaryBloodPressureSaved>()
+        .map { it.wasBloodPressureSaved }
+
+    val allBpsForPatientDeleted = events
+        .ofType<PatientSummaryAllBloodPressuresDeleted>()
+        .map { it.allBloodPressuresDeleted }
+
+    val shouldGoBack = Observables
+        .combineLatest(bloodPressureSaves, allBpsForPatientDeleted) { wasBloodPressureSaved, recordedBpsAreDeleted ->
+          if (recordedBpsAreDeleted) true else wasBloodPressureSaved.not()
+        }
+
+    val backClicks = events
+        .ofType<PatientSummaryBackClicked>()
+
+    val goBackToHomeScreen = backClicks
+        .withLatestFrom(shouldGoBack, callers)
+        .filter { (_, shouldGoBack, _) -> shouldGoBack }
+        .filter { (_, _, caller) -> caller == NEW_PATIENT }
         .map { { ui: Ui -> ui.goBackToHome() } }
 
-    return Observable.mergeArray(
-        doneOrBackClicksWithBpSaved,
-        backClicksWithBpNotSaved,
-        doneClicksWithBpNotSaved)
+    val goBackToSearchResults = backClicks
+        .withLatestFrom(shouldGoBack, callers)
+        .filter { (_, shouldGoBack, _) -> shouldGoBack }
+        .filter { (_, _, caller) -> caller == SEARCH }
+        .map { { ui: Ui -> ui.goBackToPatientSearch() } }
+
+    return goBackToHomeScreen.mergeWith(goBackToSearchResults)
   }
 
   private fun exitScreenAfterSchedulingAppointment(events: Observable<UiEvent>): Observable<UiChange> {
