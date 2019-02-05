@@ -56,7 +56,7 @@ class PatientRepositoryTest {
 
   @Before
   fun setUp() {
-    config = PatientConfig(limitOfSearchResults = 100)
+    config = PatientConfig(limitOfSearchResults = 100, scanSimpleCardFeatureEnabled = false)
     database = mock()
     patientSearchResultDao = mock()
     patientDao = mock()
@@ -78,7 +78,7 @@ class PatientRepositoryTest {
         clock,
         dateOfBirthFormat,
         searchPatientByName,
-        Single.fromCallable { config })
+        Observable.fromCallable { config })
 
     val user = PatientMocker.loggedInUser()
     whenever(userSession.requireLoggedInUser()).thenReturn(Observable.just(user))

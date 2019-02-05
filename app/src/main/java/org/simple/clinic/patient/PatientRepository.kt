@@ -41,7 +41,7 @@ class PatientRepository @Inject constructor(
     private val clock: Clock,
     @Named("date_for_user_input") private val dateOfBirthFormat: DateTimeFormatter,
     private val searchPatientByName: SearchPatientByName,
-    private val configProvider: Single<PatientConfig>
+    private val configProvider: Observable<PatientConfig>
 ) : SynceableRepository<PatientProfile, PatientPayload> {
 
   private var ongoingNewPatientEntry: OngoingNewPatientEntry = OngoingNewPatientEntry()
@@ -52,7 +52,7 @@ class PatientRepository @Inject constructor(
         .toObservable()
         .switchMapSingle { searchPatientByName.search(name, it) }
 
-    return Observables.combineLatest(patientUuidsMatchingName, configProvider.toObservable())
+    return Observables.combineLatest(patientUuidsMatchingName, configProvider)
         .map { (uuids, config) -> uuids.take(config.limitOfSearchResults) }
         .switchMapSingle { matchingUuidsSortedByScore ->
           when {

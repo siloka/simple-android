@@ -3,6 +3,7 @@ package org.simple.clinic.patient
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
 import com.google.common.truth.Truth.assertThat
 import io.reactivex.Completable
+import io.reactivex.Observable
 import io.reactivex.Single
 import org.junit.After
 import org.junit.Before
@@ -68,7 +69,7 @@ class PatientRepositoryAndroidTest {
   lateinit var clock: Clock
 
   @Inject
-  lateinit var configProvider: Single<PatientConfig>
+  lateinit var configProvider: Observable<PatientConfig>
 
   private val authenticationRule = AuthenticationRule()
 
@@ -83,7 +84,7 @@ class PatientRepositoryAndroidTest {
       .around(rxErrorsRule)!!
 
   val config: PatientConfig
-    get() = configProvider.blockingGet()
+    get() = configProvider.blockingFirst()
 
   @Before
   fun setUp() {
