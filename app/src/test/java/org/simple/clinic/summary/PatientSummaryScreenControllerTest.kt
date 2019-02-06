@@ -456,6 +456,46 @@ class PatientSummaryScreenControllerTest {
     verify(screen).goBackToHome()
   }
 
+  @Test
+  fun `when a bp has been saved and all bps are not deleted, clicking on back must show the schedule appointment sheet`() {
+
+  }
+
+  @Test
+  fun `when the screen is restored with a saved bp and all bps are not deleted, clicking on back must show the schedule appointment sheet`() {
+
+  }
+
+  @Test
+  fun `when there are patient summary changes and all bps are not deleted, clicking on back must show the schedule appointment sheet`() {
+
+  }
+
+  @Test
+  fun `when a bp has been saved and all bps are deleted, clicking on back must go back`() {
+
+  }
+
+  @Test
+  fun `when the screen is restored with a saved bp and all bps are deleted, clicking on back must go back`() {
+
+  }
+
+  @Test
+  fun `when there are patient summary changes and all bps are deleted, clicking on back must go back`() {
+
+  }
+
+  @Test
+  fun `when there are no summary changes and all bps are not deleted, clicking on save must show the schedule appointment sheet`() {
+
+  }
+
+  @Test
+  fun `when there are summary changes and all bps are not deleted, clicking on save must show the schedule appointment sheet`() {
+
+  }
+
   @Suppress("unused")
   fun bpSavedAndPatientSummaryCallers() = arrayOf(
       arrayOf(true, PatientSummaryCaller.NEW_PATIENT),
