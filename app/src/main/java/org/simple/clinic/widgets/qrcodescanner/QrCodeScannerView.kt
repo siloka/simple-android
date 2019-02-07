@@ -15,8 +15,7 @@ import com.budiyev.android.codescanner.ScanMode
 import com.google.zxing.BarcodeFormat
 import com.jakewharton.rxbinding2.view.RxView
 import io.reactivex.Observable
-import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.android.schedulers.AndroidSchedulers.*
+import io.reactivex.android.schedulers.AndroidSchedulers.mainThread
 import io.reactivex.rxkotlin.ofType
 import org.simple.clinic.activity.TheActivity
 import org.simple.clinic.router.screen.ActivityPermissionResult
@@ -46,12 +45,13 @@ class QrCodeScannerView(context: Context, attrs: AttributeSet) : FrameLayout(con
   @Inject
   lateinit var controller: QrCodeScannerViewController
 
-  private val scannerView = CodeScannerView(context).apply {
-    isAutoFocusButtonVisible = false
-    isFlashButtonVisible = false
-    maskColor = Color.TRANSPARENT
-    frameColor = Color.TRANSPARENT
-  }
+  private val scannerView = CodeScannerView(context)
+      .apply {
+        isAutoFocusButtonVisible = false
+        isFlashButtonVisible = false
+        maskColor = Color.TRANSPARENT
+        frameColor = Color.TRANSPARENT
+      }
 
   private val codeScanner by lazy(LazyThreadSafetyMode.NONE) { CodeScanner(context, scannerView) }
 
@@ -88,12 +88,24 @@ class QrCodeScannerView(context: Context, attrs: AttributeSet) : FrameLayout(con
       isAutoFocusEnabled = true
       isFlashEnabled = false
 
-      // Callbacks
-      decodeCallback = DecodeCallback {
-        Timber.i("Decode: ${it.barcodeFormat} - ${it.text}")
-      }
       errorCallback = ErrorCallback {
+        // Intentionally pushing this because we don't know what are the errors that can
+        // happen when trying to scan QR codes.
         Timber.e(it)
+      }
+    }
+  }
+
+  fun scans(): Observable<String> {
+    return Observable.create { emitter ->
+      codeScanner.decodeCallback = DecodeCallback { result ->
+        if (result.barcodeFormat == BarcodeFormat.QR_CODE) {
+          emitter.onNext(result.text)
+        }
+      }
+
+      emitter.setCancellable {
+        codeScanner.decodeCallback = null
       }
     }
   }
