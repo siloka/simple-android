@@ -1,6 +1,8 @@
 package org.simple.clinic
 
+import android.annotation.SuppressLint
 import android.app.Application
+import androidx.arch.core.executor.ArchTaskExecutor
 import androidx.work.Configuration
 import androidx.work.WorkManager
 import com.gabrielittner.threetenbp.LazyThreeTen
@@ -11,6 +13,7 @@ import org.simple.clinic.crash.CrashBreadcrumbsTimberTree
 import org.simple.clinic.crash.CrashReporter
 import org.simple.clinic.di.AppComponent
 import org.simple.clinic.protocol.SyncProtocolsOnLogin
+import org.simple.clinic.util.AppArchTaskExecutorDelegate
 import timber.log.Timber
 import javax.inject.Inject
 
@@ -29,6 +32,7 @@ abstract class ClinicApp : Application() {
   @Inject
   lateinit var crashReporter: CrashReporter
 
+  @SuppressLint("RestrictedApi")
   override fun onCreate() {
     super.onCreate()
 
@@ -38,6 +42,7 @@ abstract class ClinicApp : Application() {
     }
 
     Traceur.enableLogging()
+    ArchTaskExecutor.getInstance().setDelegate(AppArchTaskExecutorDelegate())
     WorkManager.initialize(this, Configuration.Builder().build())
     LazyThreeTen.init(this)
 
