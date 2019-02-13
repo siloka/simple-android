@@ -954,6 +954,54 @@ class DatabaseMigrationAndroidTest {
       assertThat(it.double("location_longitude")).isEqualTo(1.0)
     }
   }
+
+  @Test
+  fun migration_28_to_29_verify_syncStatus_updated_for_BloodPressureMeasurement() {
+    val db_v28 = helper.createDatabase(version = 28)
+    val tableName = "BloodPressureMeasurement"
+    db_v28.assertColumnCount(tableName = tableName, expectedCount = 10)
+
+    db_v28.execSQL("""
+      INSERT INTO "$tableName" VALUES(
+        'uuid',
+        120,
+        110,
+        'IN_FLIGHT',
+        'userUuid',
+        'facilityUuid',
+        'patientUuid',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z')
+    """)
+
+    db_v28.execSQL("""
+      INSERT INTO "$tableName" VALUES(
+        'uuid2',
+        120,
+        110,
+        'DONE',
+        'userUuid',
+        'facilityUuid',
+        'patientUuid',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z')
+    """)
+
+    val db_v29 = helper.migrateTo(29)
+    db_v29.query("""SELECT * FROM $tableName""").use {
+      assertThat(it.columnCount).isEqualTo(10)
+
+      it.moveToNext()
+
+      assertThat(it.string("syncStatus")).isEqualTo("PENDING")
+
+      it.moveToNext()
+
+      assertThat(it.string("syncStatus")).isEqualTo("DONE")
+    }
+  }
 }
 
 private fun Cursor.string(column: String): String? = getString(getColumnIndex(column))

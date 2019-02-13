@@ -10,5 +10,8 @@ class Migration_28_29 : Migration(28, 29) {
     database.execSQL("""
       UPDATE "Facility" SET "syncStatus" = 'PENDING' WHERE "syncStatus" = 'IN_FLIGHT'
     """)
+    database.execSQL("""
+      UPDATE "BloodPressureMeasurement" SET "syncStatus" = 'PENDING' WHERE "syncStatus" = 'IN_FLIGHT'
+    """)
   }
 }
