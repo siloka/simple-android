@@ -1002,6 +1002,58 @@ class DatabaseMigrationAndroidTest {
       assertThat(it.string("syncStatus")).isEqualTo("DONE")
     }
   }
+
+  @Test
+  fun migration_28_to_29_verify_syncStatus_updated_for_PrescribedDrug() {
+    val db_v28 = helper.createDatabase(version = 28)
+    val tableName = "PrescribedDrug"
+    db_v28.assertColumnCount(tableName = tableName, expectedCount = 12)
+
+    db_v28.execSQL("""
+      INSERT INTO "PrescribedDrug" VALUES(
+        'uuid',
+        'Drug name',
+        'Dosage',
+        'rxNormCode',
+        0,
+        1,
+        'patientUuid',
+        'facilityUuid',
+        'IN_FLIGHT',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z')
+    """)
+
+    db_v28.execSQL("""
+      INSERT INTO "PrescribedDrug" VALUES(
+        'uuid2',
+        'Drug name',
+        'Dosage',
+        'rxNormCode',
+        0,
+        1,
+        'patientUuid',
+        'facilityUuid',
+        'DONE',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z')
+    """)
+
+    val db_v29 = helper.migrateTo(29)
+    db_v29.query("""SELECT * FROM $tableName""").use {
+      assertThat(it.columnCount).isEqualTo(12)
+
+      it.moveToNext()
+
+      assertThat(it.string("syncStatus")).isEqualTo("PENDING")
+
+      it.moveToNext()
+
+      assertThat(it.string("syncStatus")).isEqualTo("DONE")
+    }
+  }
 }
 
 private fun Cursor.string(column: String): String? = getString(getColumnIndex(column))
