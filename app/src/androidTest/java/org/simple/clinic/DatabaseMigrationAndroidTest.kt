@@ -861,11 +861,105 @@ class DatabaseMigrationAndroidTest {
 
     assertThat(lastFacilityPullToken.get()).isEqualTo(None)
   }
+
+  @Test
+  fun migration_28_to_29_verify_syncStatus_updated_for_Facility() {
+    val db_v28 = helper.createDatabase(version = 28)
+    db_v28.assertColumnCount(tableName = "Facility", expectedCount = 17)
+
+    db_v28.execSQL("""
+      INSERT INTO "Facility" VALUES (
+        'facility-uuid',
+        'facility-name',
+        'facility-type',
+        'street-address',
+        'village-or-colony',
+        'district',
+        'state',
+        'country',
+        'pin code',
+        'protocol-uuid',
+        'group-uuid',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        'IN_FLIGHT',
+        '2018-09-25T11:20:42.008Z',
+        0.0,
+        1.0)
+    """)
+
+    db_v28.execSQL("""
+      INSERT INTO "Facility" VALUES (
+        'facility-uuid2',
+        'facility-name',
+        'facility-type',
+        'street-address',
+        'village-or-colony',
+        'district',
+        'state',
+        'country',
+        'pin code',
+        'protocol-uuid',
+        'group-uuid',
+        '2018-09-25T11:20:42.008Z',
+        '2018-09-25T11:20:42.008Z',
+        'DONE',
+        '2018-09-25T11:20:42.008Z',
+        0.0,
+        1.0)
+    """)
+
+    val db_v29 = helper.migrateTo(29)
+    db_v29.query("""SELECT * FROM Facility""").use {
+      assertThat(it.columnCount).isEqualTo(17)
+
+      it.moveToNext()
+
+      assertThat(it.string("uuid")).isEqualTo("facility-uuid")
+      assertThat(it.string("name")).isEqualTo("facility-name")
+      assertThat(it.string("facilityType")).isEqualTo("facility-type")
+      assertThat(it.string("streetAddress")).isEqualTo("street-address")
+      assertThat(it.string("villageOrColony")).isEqualTo("village-or-colony")
+      assertThat(it.string("district")).isEqualTo("district")
+      assertThat(it.string("state")).isEqualTo("state")
+      assertThat(it.string("country")).isEqualTo("country")
+      assertThat(it.string("pinCode")).isEqualTo("pin code")
+      assertThat(it.string("protocolUuid")).isEqualTo("protocol-uuid")
+      assertThat(it.string("groupUuid")).isEqualTo("group-uuid")
+      assertThat(it.string("createdAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.string("updatedAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.string("syncStatus")).isEqualTo("PENDING")
+      assertThat(it.string("deletedAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.double("location_latitude")).isEqualTo(0.0)
+      assertThat(it.double("location_longitude")).isEqualTo(1.0)
+
+      it.moveToNext()
+
+      assertThat(it.string("uuid")).isEqualTo("facility-uuid2")
+      assertThat(it.string("name")).isEqualTo("facility-name")
+      assertThat(it.string("facilityType")).isEqualTo("facility-type")
+      assertThat(it.string("streetAddress")).isEqualTo("street-address")
+      assertThat(it.string("villageOrColony")).isEqualTo("village-or-colony")
+      assertThat(it.string("district")).isEqualTo("district")
+      assertThat(it.string("state")).isEqualTo("state")
+      assertThat(it.string("country")).isEqualTo("country")
+      assertThat(it.string("pinCode")).isEqualTo("pin code")
+      assertThat(it.string("protocolUuid")).isEqualTo("protocol-uuid")
+      assertThat(it.string("groupUuid")).isEqualTo("group-uuid")
+      assertThat(it.string("createdAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.string("updatedAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.string("syncStatus")).isEqualTo("DONE")
+      assertThat(it.string("deletedAt")).isEqualTo("2018-09-25T11:20:42.008Z")
+      assertThat(it.double("location_latitude")).isEqualTo(0.0)
+      assertThat(it.double("location_longitude")).isEqualTo(1.0)
+    }
+  }
 }
 
 private fun Cursor.string(column: String): String? = getString(getColumnIndex(column))
 private fun Cursor.boolean(column: String): Boolean? = getInt(getColumnIndex(column)) == 1
 private fun Cursor.integer(columnName: String): Int? = getInt(getColumnIndex(columnName))
+private fun Cursor.double(columnName: String): Double = getDouble(getColumnIndex(columnName))
 
 private fun SupportSQLiteDatabase.assertColumnCount(tableName: String, expectedCount: Int) {
   this.query("""
