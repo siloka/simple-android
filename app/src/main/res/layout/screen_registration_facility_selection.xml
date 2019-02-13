@@ -67,7 +67,7 @@
     android:layout_below="@+id/registrationfacilities_toolbar_container"
     android:scrollbarStyle="insideOverlay"
     android:scrollbars="vertical"
-    tools:listitem="@layout/list_facility_selection" />
+    tools:listitem="@layout/list_facility_selection_option" />
 
   <LinearLayout
     android:id="@+id/registrationfacilities_error_container"
